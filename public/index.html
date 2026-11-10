@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZeFix! Kartenschmiede</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img class="wort" src="assets/zefix-wortmarke-weiss.svg" alt="ZeFix!"><span class="claim">Kartenschmiede</span></div>
+    <div class="hint">Bau dir deine Sammelkarte – dein Avatar erzählt, was du kannst</div>
+    <a class="toplink" href="overview.html">📚 Alle Karten</a>
+    <button id="reset" class="ghost" title="Für die nächste Person alles leeren">↺ Nächste Person</button>
+  </header>
+
+  <main>
+    <section class="form">
+      <div class="step">
+        <h2><span class="num">1</span> Wer bist du? <small>Name ist Pflicht – Spitzname reicht</small></h2>
+        <div id="role" class="chips big"></div>
+        <input id="name" maxlength="18" placeholder="Dein Name" autocomplete="off" required>
+      </div>
+
+      <div class="step">
+        <h2><span class="num">2</span> Was kannst du? <small>Schieb einfach – nichts ist Pflicht</small></h2>
+        <div id="skills" class="skills"></div>
+      </div>
+
+      <div class="step">
+        <h2><span class="num">3</span> Wie tickst du?</h2>
+        <div id="vibes" class="vibes"></div>
+      </div>
+
+      <div class="step">
+        <h2><span class="num">4</span> Dein Avatar</h2>
+        <div id="creatures" class="chips big"></div>
+        <div id="extras" class="chips"></div>
+        <input id="avatarText" maxlength="80" placeholder="Noch was? z. B. „lila Haare, mag Katzen“ (optional)">
+      </div>
+
+      <div class="step">
+        <h2><span class="num">5</span> <span id="learnTitle">Was willst du hier ausprobieren?</span></h2>
+        <div id="learn" class="chips"></div>
+        <input id="learnText" maxlength="40" placeholder="Eigene Idee (optional)">
+        <input id="askMe" maxlength="50" placeholder="Frag mich nach … (optional)">
+      </div>
+
+      <div class="step secret">
+        <h2><span class="num">6</span> Geheime Fun Facts 🤫 <small>Stehen nicht auf deiner Karte – nur in den Bingos der anderen</small></h2>
+        <div id="fun" class="fun"></div>
+        <div class="two">
+          <input id="favArtist" maxlength="30" placeholder="🎤 Lieblingskünstler*in (optional)">
+          <input id="favThing" maxlength="30" placeholder="💛 Was magst du noch? (optional)">
+        </div>
+      </div>
+    </section>
+
+    <aside class="preview">
+      <div class="tabs">
+        <button id="tabCard" type="button" class="tab on">Karte</button>
+        <button id="tabBingo" type="button" class="tab">Bingo</button>
+      </div>
+      <div class="cardwrap"><canvas id="card" width="696" height="1190"></canvas><img class="mascot" src="assets/zefix-mascot.png" alt=""></div>
+      <div class="bingowrap" hidden><canvas id="bingo" width="696" height="906"></canvas></div>
+      <div class="status" id="status">Live-Vorschau – so kommt sie aus dem Drucker.</div>
+      <div class="actions">
+        <button id="generate" class="primary">✨ Karte zaubern</button>
+        <button id="newImage" disabled>🎲 Anderes Bild</button>
+        <button id="shuffleBingo" disabled>🔀 Bingo mischen</button>
+        <button id="print" class="print" disabled>🖨️ Drucken</button>
+        <button id="download" class="ghost">⬇︎ PNG</button>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

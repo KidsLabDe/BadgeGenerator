@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZeFix! Alle Karten</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ov { max-width: 1440px; margin: 0 auto; padding: 24px 28px 60px; }
+    .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 22px; }
+    .bar h1 { font-family: var(--hand); font-weight: 400; font-size: 40px; margin: 0 16px 0 0; }
+    .bar input { width: 260px; margin: 0; }
+    .count { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--petrol); margin-left: auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 26px; }
+    .item { background: #fff; border: 3px solid var(--ink); box-shadow: 5px 6px 0 rgba(0,0,0,.14); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .item:nth-child(odd) { transform: rotate(-0.6deg); } .item:nth-child(even) { transform: rotate(0.5deg); }
+    .item img { width: 100%; display: block; border: 1px solid #ddd; background: #fff; }
+    .item .noimg { aspect-ratio: 696 / 1190; display: grid; place-items: center; border: 2px dashed #ccc; color: #999; font-family: var(--hand); font-size: 22px; }
+    .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .meta b { font-family: var(--hand); font-weight: 400; font-size: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta span { font-family: var(--mono); font-size: 11px; color: #777; white-space: nowrap; }
+    .badge { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; background: var(--petrol); color: #fff; align-self: flex-start; }
+    .badge.mentor { background: var(--pink); }
+    .btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .btns button { font-size: 11px; padding: 8px 4px; box-shadow: 2px 2px 0 var(--ink); border-width: 2px; }
+    .btns .wide { grid-column: 1 / -1; background: var(--petrol); color: #fff; }
+    .btns .del { color: #b0003a; }
+    .chip { cursor: pointer; }
+    .empty { font-family: var(--hand); font-size: 28px; color: #888; padding: 40px 0; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; font-family: var(--mono); font-size: 13px; z-index: 50; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img class="wort" src="assets/zefix-wortmarke-weiss.svg" alt="ZeFix!"><span class="claim">Alle Karten</span></div>
+    <div class="hint">Übersicht zum Nachdrucken – nur fürs Orga-Team</div>
+    <a class="toplink" href="/">✨ Neue Karte</a>
+  </header>
+  <div class="ov">
+    <div class="bar">
+      <h1>Kartensammlung</h1>
+      <div class="chips" id="filter"></div>
+      <input id="q" placeholder="Name suchen …">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+  <script type="module" src="overview.js"></script>
+</body>
+</html>
