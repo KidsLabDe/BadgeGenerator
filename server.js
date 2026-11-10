@@ -117,11 +117,36 @@ function hasCmd(cmd) {
   if (cmd.includes('/')) return fs.existsSync(cmd);
   try { execFileSync('/usr/bin/which', [cmd], { stdio: 'ignore' }); return true; } catch { return false; }
 }
-// Linux: Kernel-Treiber (/dev/usb/lp0), macOS: libusb
+// Druckweg: BROTHER_QL_BACKEND = auto | linux_kernel | pyusb
+// auto: gibt es /dev/usb/lp* (Kernel-Treiber usblp), wird das genutzt, sonst direkt per USB (libusb).
+// Wird bei jedem Druck neu ermittelt, damit Ab-/Anstecken des Druckers kein Problem ist.
 const QL_CMD = process.env.BROTHER_QL_CMD || 'brother_ql';
-const QL_BACKEND = process.env.BROTHER_QL_BACKEND || (process.platform === 'linux' ? 'linux_kernel' : 'pyusb');
-const QL_PRINTER = process.env.BROTHER_QL_PRINTER || (QL_BACKEND === 'linux_kernel' ? 'file:///dev/usb/lp0' : 'usb://0x04f9:0x2027');
 const QL_MODEL = process.env.BROTHER_QL_MODEL || 'QL-560';
+const QL_USB_DEFAULT = 'usb://0x04f9:0x2027'; // Brother QL-560
+// Linux: angeschlossenen Brother-Drucker über sysfs finden (Hersteller-ID 04f9)
+function brotherUsb() {
+  try {
+    for (const d of fs.readdirSync('/sys/bus/usb/devices')) {
+      const base = `/sys/bus/usb/devices/${d}`;
+      if (!fs.existsSync(`${base}/idVendor`)) continue;
+      if (fs.readFileSync(`${base}/idVendor`, 'utf8').trim() !== '04f9') continue;
+      return `usb://0x04f9:0x${fs.readFileSync(`${base}/idProduct`, 'utf8').trim()}`;
+    }
+  } catch {}
+  return QL_USB_DEFAULT;
+}
+function qlTarget() {
+  let backend = (process.env.BROTHER_QL_BACKEND || 'auto').toLowerCase();
+  let printer = process.env.BROTHER_QL_PRINTER || '';
+  if (backend === 'auto') {
+    const lp = process.platform === 'linux' && fs.existsSync('/dev/usb')
+      ? fs.readdirSync('/dev/usb').filter((f) => /^lp\d+$/.test(f)).sort()[0] : null;
+    backend = lp ? 'linux_kernel' : 'pyusb';
+    if (!printer || printer.startsWith('file://') !== (backend === 'linux_kernel')) printer = lp ? `file:///dev/usb/${lp}` : brotherUsb();
+  }
+  if (!printer) printer = backend === 'linux_kernel' ? 'file:///dev/usb/lp0' : brotherUsb();
+  return { backend, printer };
+}
 function printMode() {
   const m = (process.env.PRINT_MODE || 'auto').toLowerCase();
   if (m !== 'auto') return m;
@@ -141,7 +166,18 @@ function printPng(buf) {
       else resolve(mode);
     };
     if (mode === 'brother_ql') {
-      execFile(QL_CMD, ['-m', QL_MODEL, '-b', QL_BACKEND, '-p', QL_PRINTER, 'print', '-l', '62', file], { timeout: 60000 }, done);
+      const { backend, printer } = qlTarget();
+      execFile(QL_CMD, ['-m', QL_MODEL, '-b', backend, '-p', printer, 'print', '-l', '62', file], { timeout: 60000 }, (err, out, errOut) => {
+        if (err) {
+          const msg = String(errOut || err.message);
+          const hint = /No such file|No backend|not found|Errno 2|Device not found|NoneType/i.test(msg) ? 'Drucker nicht gefunden – ist der QL-560 eingeschaltet und per USB verbunden?'
+            : /Permission|Errno 13|Access denied/i.test(msg) ? 'Keine Berechtigung für den Drucker – setup-linux.sh ausführen und neu anmelden.'
+            : msg.trim().split('\n').pop();
+          console.error(msg);
+          return done(new Error(hint), out, '');
+        }
+        done(null, out, errOut);
+      });
     } else if (mode === 'cups') {
       execFile('lp', ['-d', process.env.CUPS_PRINTER, '-o', 'fit-to-page', file], { timeout: 60000 }, done);
     } else reject(new Error(`Unbekannter PRINT_MODE: ${mode}`));
@@ -272,7 +308,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, pool(url.searchParams.get('exclude')));
     }
     if (req.method === 'GET' && req.url === '/api/status') {
-      return send(res, 200, { printMode: printMode(), printer: `${QL_BACKEND} ${QL_PRINTER}`, textModel: TEXT_MODEL, imageModel: IMAGE_MODEL, hasKey: !!KEY });
+      return send(res, 200, { printMode: printMode(), printer: qlTarget(), textModel: TEXT_MODEL, imageModel: IMAGE_MODEL, hasKey: !!KEY });
     }
     // statische Dateien
     const rel = decodeURIComponent(req.url.split('?')[0]);

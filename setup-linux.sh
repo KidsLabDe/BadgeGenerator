@@ -10,7 +10,6 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 URL="http://localhost:5173"
-PRINTER_DEV="/dev/usb/lp0"
 NEED_RELOGIN=0
 
 say()  { printf '\n\033[1;35m▶ %s\033[0m\n' "$*"; }
@@ -81,8 +80,13 @@ fi
 QL_BIN="$(command -v brother_ql)"
 ok "brother_ql: $QL_BIN"
 
-# ---------- 3. Druckerzugriff ----------
-say "Druckerzugriff (Gruppe lp)"
+# ---------- 3. Drucker finden und Zugriff einrichten ----------
+# Zwei Wege: Kernel-Treiber usblp (/dev/usb/lp0) oder direkt per USB über libusb.
+# Auf Manjaro/Arch ist usblp oft gesperrt (wegen CUPS) – dann wird automatisch libusb genutzt.
+say "Drucker suchen und Zugriff einrichten"
+ldconfig -p 2>/dev/null | grep -q 'libusb-1.0' || pkg_install libusb libusb-1.0-0 libusbx
+ok "libusb vorhanden"
+
 if id -nG "$USER" | tr ' ' '\n' | grep -qx lp; then
   ok "$USER ist in der Gruppe lp"
 else
@@ -90,12 +94,34 @@ else
   NEED_RELOGIN=1
   ok "$USER zur Gruppe lp hinzugefügt (gilt nach Ab-/Anmelden)"
 fi
-if [[ -e "$PRINTER_DEV" ]]; then
-  ok "Drucker gefunden: $PRINTER_DEV"
+
+RULE=/etc/udev/rules.d/60-brother-ql.rules
+if [[ ! -f "$RULE" ]]; then
+  echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="04f9", MODE="0660", GROUP="lp", TAG+="uaccess"' | sudo tee "$RULE" >/dev/null
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=04f9 || true
+  ok "udev-Regel für Brother-Drucker angelegt ($RULE)"
 else
-  warn "$PRINTER_DEV fehlt – QL-560 per USB anschließen und einschalten."
-  warn "Falls er trotzdem fehlt: 'sudo modprobe usblp' und 'lsusb | grep -i brother' prüfen."
-  warn "Läuft CUPS und hat den Drucker übernommen, hilft meist: Drucker einmal ab- und wieder anstecken."
+  ok "udev-Regel vorhanden"
+fi
+
+find_usb() {
+  local d
+  for d in /sys/bus/usb/devices/*; do
+    [[ -f "$d/idVendor" && "$(<"$d/idVendor")" == 04f9 ]] && { echo "0x04f9:0x$(<"$d/idProduct")"; return 0; }
+  done
+  return 1
+}
+find_lp() { compgen -G '/dev/usb/lp*' | sort | head -n1; }
+USB_ID="$(find_usb || true)"
+LP_DEV="$(find_lp || true)"
+if [[ -z "$USB_ID" ]]; then
+  warn "Kein Brother-Drucker am USB gefunden – QL-560 anschließen, einschalten und das Skript nochmal starten."
+  warn "Prüfen kannst du das mit: ./scripts/printer-check.sh"
+else
+  ok "Brother-Drucker am USB: $USB_ID"
+  if [[ -n "$LP_DEV" ]]; then ok "Druckweg: Kernel-Treiber $LP_DEV"
+  else ok "Druckweg: direkt per USB (usblp ist nicht aktiv – das ist okay)"; fi
 fi
 
 # ---------- 4. Konfiguration ----------
@@ -107,18 +133,23 @@ if [[ ! -f .env ]]; then
 fi
 set_env PRINT_MODE brother_ql
 set_env BROTHER_QL_CMD "$QL_BIN"
-set_env BROTHER_QL_BACKEND linux_kernel
-set_env BROTHER_QL_PRINTER "file://$PRINTER_DEV"
+set_env BROTHER_QL_BACKEND auto     # Server wählt bei jedem Druck lp0 oder USB
+set_env BROTHER_QL_PRINTER ""
 chmod 600 .env
 grep -q '^PB_GEMINI_API_KEY=.\+' .env && ok "Gemini-Key gesetzt" || warn "Kein Gemini-Key in .env – die Karten laufen dann im Offline-Modus."
 mkdir -p data/cards
 
 # ---------- 5. Testdruck ----------
 say "Testdruck"
-if [[ -e "$PRINTER_DEV" ]] && ask "Testetikett drucken?"; then
-  CMD=("$QL_BIN" -m QL-560 -b linux_kernel -p "file://$PRINTER_DEV" print -l 62 "$DIR/scripts/testlabel.png")
-  if [[ -w "$PRINTER_DEV" ]]; then "${CMD[@]}" && ok "Gedruckt"
-  else sg lp -c "$(printf '%q ' "${CMD[@]}")" && ok "Gedruckt"; fi || warn "Testdruck fehlgeschlagen – siehe Meldung oben."
+if [[ -n "$USB_ID" ]] && ask "Testetikett drucken?"; then
+  if [[ -n "$LP_DEV" ]]; then
+    CMD=("$QL_BIN" -m QL-560 -b linux_kernel -p "file://$LP_DEV" print -l 62 "$DIR/scripts/testlabel.png")
+  else
+    CMD=("$QL_BIN" -m QL-560 -b pyusb -p "usb://$USB_ID" print -l 62 "$DIR/scripts/testlabel.png")
+  fi
+  if "${CMD[@]}"; then ok "Gedruckt"
+  elif sg lp -c "$(printf '%q ' "${CMD[@]}")"; then ok "Gedruckt (über Gruppe lp)"
+  else warn "Testdruck fehlgeschlagen – bitte ./scripts/printer-check.sh ausführen und die Ausgabe schicken."; fi
 fi
 
 # ---------- 6. Autostart des Servers ----------

@@ -30,6 +30,10 @@ systemctl --user restart zefix-badge
 
 Nach dem ersten Lauf einmal ab- und wieder anmelden, damit die Gruppe `lp` greift.
 
+Probleme mit dem Drucker? Dann `./scripts/printer-check.sh` ausführen und die Ausgabe mitschicken.
+Gibt es kein `/dev/usb/lp0` (auf Manjaro/Arch ist `usblp` oft gesperrt), druckt der Server automatisch direkt
+per USB über libusb. Die nötige udev-Regel legt `setup-linux.sh` an.
+
 ## Entwicklung (macOS)
 
 ```bash
