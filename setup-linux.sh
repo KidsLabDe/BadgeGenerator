@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ZeFix! Kartenschmiede – Einrichtung auf einem Linux-Laptop (Debian/Ubuntu/Mint)
+# ZeFix! Kartenschmiede – Einrichtung auf einem Linux-Laptop (Manjaro/Arch, außerdem Debian/Ubuntu und Fedora)
 # mit direkt angeschlossenem Brother QL-560 (62 mm Endlos).
 #
 #   ./setup-linux.sh
@@ -32,7 +32,21 @@ set_env() { # set_env KEY VALUE  – ersetzt oder ergänzt eine Zeile in .env
 }
 
 [[ "$(uname -s)" == "Linux" ]] || { echo "Dieses Skript ist für Linux. Auf dem Mac siehe README."; exit 1; }
-command -v apt-get >/dev/null || warn "Kein apt gefunden – Pakete (nodejs, pipx) ggf. selbst installieren."
+
+# Paketmanager erkennen: pacman (Manjaro/Arch), apt (Debian/Ubuntu), dnf (Fedora)
+if command -v pacman >/dev/null; then PM=pacman
+elif command -v apt-get >/dev/null; then PM=apt
+elif command -v dnf >/dev/null; then PM=dnf
+else PM=none; warn "Kein bekannter Paketmanager – bitte nodejs und pipx selbst installieren."; fi
+
+pkg_install() { # pkg_install <pacman-Paket> <apt-Paket> <dnf-Paket>
+  case "$PM" in
+    pacman) sudo pacman -S --needed --noconfirm "$1" ;;
+    apt)    sudo apt-get update && sudo apt-get install -y "$2" ;;
+    dnf)    sudo dnf install -y "$3" ;;
+    *)      echo "Bitte installieren: $1"; exit 1 ;;
+  esac
+}
 
 # ---------- 1. Node.js ----------
 say "Node.js prüfen"
@@ -41,11 +55,14 @@ if [[ "$(node_major)" -ge 18 ]]; then
   ok "Node $(node -v)"
 else
   warn "Node 18+ fehlt (gefunden: $(node -v 2>/dev/null || echo keins))."
-  if ask "Node 20 über NodeSource installieren (braucht sudo)?"; then
-    sudo apt-get update
-    sudo apt-get install -y ca-certificates curl
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+  if ask "Node.js installieren (braucht sudo)?"; then
+    pkg_install nodejs nodejs nodejs
+    if [[ "$(node_major)" -lt 18 && "$PM" == apt ]]; then
+      warn "Die Debian-Version ist zu alt – installiere Node 20 über NodeSource."
+      curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+      sudo apt-get install -y nodejs
+    fi
+    [[ "$(node_major)" -ge 18 ]] || { echo "Abbruch: Node 18+ konnte nicht installiert werden."; exit 1; }
     ok "Node $(node -v)"
   else
     echo "Abbruch: Bitte Node 18 oder neuer installieren."; exit 1
@@ -57,9 +74,7 @@ NODE_BIN="$(command -v node)"
 say "Druckertreiber brother_ql einrichten"
 export PATH="$HOME/.local/bin:$PATH"
 if ! command -v brother_ql >/dev/null; then
-  if ! command -v pipx >/dev/null; then
-    sudo apt-get update && sudo apt-get install -y pipx
-  fi
+  command -v pipx >/dev/null || pkg_install python-pipx pipx pipx
   pipx ensurepath >/dev/null 2>&1 || true
   pipx install brother_ql_next || pipx install brother_ql
 fi
@@ -80,6 +95,7 @@ if [[ -e "$PRINTER_DEV" ]]; then
 else
   warn "$PRINTER_DEV fehlt – QL-560 per USB anschließen und einschalten."
   warn "Falls er trotzdem fehlt: 'sudo modprobe usblp' und 'lsusb | grep -i brother' prüfen."
+  warn "Läuft CUPS und hat den Drucker übernommen, hilft meist: Drucker einmal ab- und wieder anstecken."
 fi
 
 # ---------- 4. Konfiguration ----------

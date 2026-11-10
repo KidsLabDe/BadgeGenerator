@@ -3,7 +3,7 @@
 Jugendliche bauen sich mit Schiebereglern und Chips eine Sammelkarte. Gemini schreibt die Texte und zeichnet einen
 s/w-Avatar, danach druckt der Brother QL-560 die Karte auf 62 mm Endlosband.
 
-## Linux-Laptop mit QL-560 (Einsatz vor Ort)
+## Linux-Laptop mit QL-560 (Einsatz vor Ort – Manjaro/Arch, Debian/Ubuntu, Fedora)
 
 ```bash
 git clone https://github.com/kidslabde/BadgeGenerator.git
@@ -12,7 +12,7 @@ cd BadgeGenerator
 ```
 
 Das Skript erledigt Folgendes (es kann mehrfach laufen):
-1. prüft Node 18+ und bietet sonst Node 20 an
+1. erkennt den Paketmanager (pacman, apt oder dnf) und installiert bei Bedarf Node.js und pipx
 2. installiert `brother_ql` über pipx
 3. nimmt dich in die Gruppe `lp` auf, für den Zugriff auf `/dev/usb/lp0`
 4. legt `.env` an und fragt nach dem Gemini-Key
