@@ -65,16 +65,13 @@ function describeProfile(p) {
     .filter((s) => s.level > 0)
     .sort((a, b) => b.level - a.level)
     .map((s) => `${s.label} (Level ${s.level}/3${s.tags?.length ? ', Tags: ' + s.tags.join(', ') : ''})`);
-  const vibes = (p.vibes || []).map((v) => `${v.left} ↔ ${v.right}: ${v.value}/100 (0 = ${v.left}, 100 = ${v.right})`);
   return [
     `Rolle: ${p.role === 'mentor' ? 'Mentor*in (begleitet Teams, erfahren)' : 'Teilnehmer*in (12–18 Jahre)'}`,
     `Name: ${p.name || '(kein Name)'}`,
     `Skills: ${skills.join('; ') || 'noch offen – Entdecker*in'}`,
-    `Will lernen / ausprobieren: ${[...(p.learnTags || []), p.learnText].filter(Boolean).join(', ') || '-'}`,
-    `Persönlichkeit: ${vibes.join('; ')}`,
+    `Will lernen / ausprobieren: ${(p.learnTags || []).join(', ') || '-'}`,
     `Avatar-Wesen: ${p.avatar?.creature || 'frei wählbar'}`,
-    `Avatar-Details: ${[...(p.avatar?.extras || []), p.avatar?.text].filter(Boolean).join(', ') || '-'}`,
-    `Freitext "Frag mich nach": ${p.askMe || '-'}`,
+    `Avatar-Accessoires: ${(p.avatar?.extras || []).join(', ') || '-'}`,
   ].join('\n');
 }
 
@@ -84,7 +81,7 @@ Die Karte hilft schüchternen Jugendlichen, ins Gespräch zu kommen und ein Team
 Regeln: Deutsch, freundlich, witzig, niemals abwertend, keine Anspielungen auf Aussehen, Gewicht, Herkunft oder Geschlecht.
 Keine Pronomen (er/sie/ihn/ihr) für die Person und kein Geschlecht aus dem Namen ableiten. Der Flavor-Text ist in der Ich-Form geschrieben (die Karte spricht selbst), z. B. "Frag mich nach …". Titel geschlechtsneutral (z. B. "Meister*in" oder "Profi").
 Genau 2 Attacken, basierend auf den stärksten Skills (Level übernehmen). Wenn kaum Skills: kreative Entdecker-Attacken.
-Die Persönlichkeits-Regler fließen in Schwäche, Resistenz und Flavor ein.
+Schwäche, Resistenz und Flavor erfindest du passend zu Skills, Avatar-Wesen und Lernwünschen – liebevoll und harmlos. Der Flavor-Text lädt zum Ansprechen ein und greift gern einen Lernwunsch auf.
 Bei Mentor*innen: Attacken beschreiben, wobei die Person Teams helfen kann (z. B. "Hilft deinem Team …"), Flavor lädt ein, um Hilfe zu fragen ("Frag mich, wenn …").
 Das imagePrompt beschreibt nur die Kreatur (Avatar-Wesen + Details + Skill-Thema als Accessoires), keine Menschen, kein Text.
 

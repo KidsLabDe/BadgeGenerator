@@ -29,32 +29,23 @@
       </div>
 
       <div class="step">
-        <h2><span class="num">3</span> Wie tickst du?</h2>
-        <div id="vibes" class="vibes"></div>
-      </div>
-
-      <div class="step">
-        <h2><span class="num">4</span> Dein Avatar</h2>
+        <h2><span class="num">3</span> Dein Avatar</h2>
         <div id="creatures" class="chips big"></div>
         <div id="extras" class="chips"></div>
-        <input id="avatarText" maxlength="80" placeholder="Noch was? z. B. „lila Haare, mag Katzen“ (optional)">
       </div>
 
       <div class="step">
-        <h2><span class="num">5</span> <span id="learnTitle">Was willst du hier ausprobieren?</span></h2>
+        <h2><span class="num">4</span> <span id="learnTitle">Was willst du hier ausprobieren?</span></h2>
         <div id="learn" class="chips"></div>
-        <input id="learnText" maxlength="40" placeholder="Eigene Idee (optional)">
-        <input id="askMe" maxlength="50" placeholder="Frag mich nach … (optional)">
       </div>
 
       <div class="step secret">
-        <h2><span class="num">6</span> Geheime Fun Facts 🤫 <small>Stehen nicht auf deiner Karte – nur in den Bingos der anderen</small></h2>
+        <h2><span class="num">5</span> Geheime Fun Facts 🤫 <small>Stehen nicht auf deiner Karte – nur in den Bingos der anderen</small></h2>
         <div id="fun" class="fun"></div>
-        <div class="two">
-          <input id="favArtist" maxlength="30" placeholder="🎤 Lieblingskünstler*in (optional)">
-          <input id="favThing" maxlength="30" placeholder="💛 Was magst du noch? (optional)">
-        </div>
+        <input id="favArtist" maxlength="30" placeholder="🎤 Lieblingskünstler*in (optional)">
       </div>
+
+      <button id="generate2" class="primary inline-generate">✨ Karte zaubern</button>
     </section>
 
     <aside class="preview">
@@ -74,6 +65,17 @@
       </div>
     </aside>
   </main>
+
+  <div id="overlay" class="overlay" hidden aria-live="polite">
+    <div class="overlay-box">
+      <img src="assets/zefix-mascot2-animiert.gif" alt="">
+      <div class="overlay-title">Deine Karte wird gezaubert …</div>
+      <div class="overlay-step" id="overlayStep">Einen Moment bitte</div>
+      <div class="overlay-bar"><div id="overlayBar"></div></div>
+      <div class="overlay-time" id="overlayTime">0 Sek.</div>
+      <div class="overlay-note">Bitte warten – das dauert ca. 15 Sekunden.</div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

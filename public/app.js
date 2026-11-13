@@ -1,5 +1,5 @@
 import {
-  CATEGORIES, JOKER, SKILL_LEVELS, VIBES, CREATURES, EXTRAS, LEARN_TAGS, WEAKNESSES, RESISTANCES,
+  CATEGORIES, JOKER, SKILL_LEVELS, CREATURES, EXTRAS, LEARN_TAGS, WEAKNESSES, RESISTANCES,
   ROLES, FUN_GROUPS, BINGO_COMMON,
 } from './data.js';
 
@@ -12,10 +12,9 @@ function freshState() {
     id: null, no: null,
     role: 'teen', name: '',
     skills: Object.fromEntries(CATEGORIES.map((c) => [c.id, { level: 0, tags: new Set(), custom: [] }])),
-    vibes: Object.fromEntries(VIBES.map((v) => [v.id, 50])),
-    creature: '', extras: new Set(), avatarText: '',
-    learn: new Set(), learnText: '', askMe: '',
-    fun: Object.fromEntries(FUN_GROUPS.map((g) => [g.id, new Set()])), favArtist: '', favThing: '',
+    creature: '', extras: new Set(),
+    learn: new Set(),
+    fun: Object.fromEntries(FUN_GROUPS.map((g) => [g.id, new Set()])), favArtist: '',
     gen: null,          // Texte von Gemini
     image: null,        // HTMLImageElement
     imageSrc: null, avatarDirty: false,
@@ -30,21 +29,20 @@ function serialize() {
   return {
     role: state.role, name: state.name,
     skills: Object.fromEntries(Object.entries(state.skills).map(([k, v]) => [k, { level: v.level, tags: [...v.tags], custom: v.custom }])),
-    vibes: state.vibes, creature: state.creature, extras: [...state.extras], avatarText: state.avatarText,
-    learn: [...state.learn], learnText: state.learnText, askMe: state.askMe,
-    fun: Object.fromEntries(Object.entries(state.fun).map(([k, v]) => [k, [...v]])), favArtist: state.favArtist, favThing: state.favThing,
+    creature: state.creature, extras: [...state.extras],
+    learn: [...state.learn],
+    fun: Object.fromEntries(Object.entries(state.fun).map(([k, v]) => [k, [...v]])), favArtist: state.favArtist,
     seed: state.seed,
   };
 }
 function deserialize(s = {}) {
   const st = freshState();
   Object.assign(st, {
-    role: s.role || 'teen', name: s.name || '', creature: s.creature || '', avatarText: s.avatarText || '',
-    learnText: s.learnText || '', askMe: s.askMe || '', favArtist: s.favArtist || '', favThing: s.favThing || '', seed: s.seed ?? st.seed,
+    role: s.role || 'teen', name: s.name || '', creature: s.creature || '',
+    favArtist: s.favArtist || '', seed: s.seed ?? st.seed,
     extras: new Set(s.extras || []), learn: new Set(s.learn || []),
   });
   for (const [k, v] of Object.entries(s.skills || {})) if (st.skills[k]) st.skills[k] = { level: v.level || 0, tags: new Set(v.tags || []), custom: v.custom || [] };
-  for (const [k, v] of Object.entries(s.vibes || {})) if (k in st.vibes) st.vibes[k] = v;
   for (const [k, v] of Object.entries(s.fun || {})) if (st.fun[k]) st.fun[k] = new Set(v);
   return st;
 }
@@ -76,16 +74,6 @@ function buildSkills() {
       <input type="range" min="0" max="3" step="1" value="${s.level}" aria-label="${c.label}">`;
     const chips = document.createElement('div'); chips.className = 'chips';
     for (const t of [...c.tags, ...s.custom]) chips.append(chip(t, s.tags.has(t), () => toggle(s.tags, t)));
-    const add = document.createElement('button'); add.type = 'button'; add.className = 'chip add'; add.textContent = '+ eigener';
-    add.onclick = () => {
-      const inp = document.createElement('input'); inp.className = 'chip-input'; inp.maxLength = 20; inp.placeholder = 'Enter ↵';
-      add.replaceWith(inp); inp.focus();
-      let done = false;
-      const commit = () => { if (done) return; done = true; const v = inp.value.trim(); if (v && !s.custom.includes(v)) { s.custom.push(v); s.tags.add(v); } buildSkills(); changed(); };
-      inp.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { done = true; buildSkills(); } };
-      inp.onblur = commit;
-    };
-    chips.append(add);
     el.append(chips);
     const range = el.querySelector('input');
     range.oninput = () => {
@@ -94,16 +82,6 @@ function buildSkills() {
       el.querySelector('.lvl').textContent = SKILL_LEVELS[s.level];
       changed();
     };
-    root.append(el);
-  }
-}
-
-function buildVibes() {
-  const root = $('#vibes'); root.innerHTML = '';
-  for (const v of VIBES) {
-    const el = document.createElement('div'); el.className = 'vibe';
-    el.innerHTML = `<span>${v.leftEmoji} ${v.left}</span><input type="range" min="0" max="100" value="${state.vibes[v.id]}"><span class="r">${v.right} ${v.rightEmoji}</span>`;
-    el.querySelector('input').oninput = (e) => { state.vibes[v.id] = Number(e.target.value); changed(); };
     root.append(el);
   }
 }
@@ -129,7 +107,7 @@ function buildFun() {
 }
 
 function bindInputs() {
-  for (const id of ['name', 'avatarText', 'learnText', 'askMe', 'favArtist', 'favThing']) {
+  for (const id of ['name', 'favArtist']) {
     const el = $('#' + id); el.value = state[id];
     el.oninput = () => { state[id] = el.value; if (id === 'name') el.classList.remove('missing'); changed(); };
   }
@@ -138,10 +116,9 @@ function bindInputs() {
 function updateRoleTexts() {
   const m = state.role === 'mentor';
   $('#learnTitle').textContent = m ? 'Was willst du selbst hier lernen?' : 'Was willst du hier ausprobieren?';
-  $('#askMe').placeholder = m ? 'Frag mich, wenn … (optional, z. B. „euer Code nicht kompiliert“)' : 'Frag mich nach … (optional, z. B. „meinem Katzenroboter“)';
 }
 
-function buildAll() { buildSkills(); buildVibes(); buildChips(); buildFun(); bindInputs(); updateRoleTexts(); busy(false); changed(); }
+function buildAll() { buildSkills(); buildChips(); buildFun(); bindInputs(); updateRoleTexts(); busy(false); changed(); }
 
 // ---------------- abgeleitete Werte ----------------
 function rankedSkills() {
@@ -160,9 +137,8 @@ function profile() {
     role: state.role,
     name: state.name.trim(),
     skills: CATEGORIES.map((c) => ({ label: c.label, level: state.skills[c.id].level, tags: [...state.skills[c.id].tags] })),
-    vibes: VIBES.map((v) => ({ left: v.left, right: v.right, value: state.vibes[v.id] })),
-    avatar: { creature: state.creature, extras: [...state.extras], text: state.avatarText.trim() },
-    learnTags: [...state.learn], learnText: state.learnText.trim(), askMe: state.askMe.trim(),
+    avatar: { creature: state.creature, extras: [...state.extras] },
+    learnTags: [...state.learn],
     // Fun Facts gehen bewusst NICHT an Gemini – sie sind geheim fürs Bingo
   };
 }
@@ -179,14 +155,12 @@ function localText() {
     };
   });
   if (!attacks.length) attacks.push({ name: 'Neugier-Strahl', effect: 'Probiert alles einmal aus und lernt dabei rasend schnell.', level: 1 });
-  const learn = [...state.learn, state.learnText.trim()].filter(Boolean);
-  const ask = state.askMe.trim();
+  const learn = [...state.learn];
   return {
     title: mentor ? 'Mentor*in' : '', creature: state.creature && state.creature !== 'Überrasch mich!' ? state.creature : '',
     attacks,
     weakness: pick(WEAKNESSES, 7), resistance: pick(RESISTANCES, 11),
-    flavor: ask ? (mentor ? `Frag mich, wenn ${ask}!` : `Frag mich nach ${ask}!`)
-      : mentor ? 'Ich helfe gern – sprich mich einfach an!'
+    flavor: mentor ? 'Ich helfe gern – sprich mich einfach an!'
       : learn.length ? `Will hier ${learn.slice(0, 2).join(' & ')} ausprobieren. Sprich mich an!` : 'Gerade frisch geschlüpft – sag Hallo!',
   };
 }
@@ -222,7 +196,6 @@ function buildBingo(pool) {
   // 2 „wie du“-Felder aus den eigenen geheimen Antworten (Freitext bleibt auf dem eigenen Zettel)
   const same = [];
   if (state.favArtist.trim()) same.push({ kind: 'same', text: `auch ${state.favArtist.trim()} hört` });
-  if (state.favThing.trim()) same.push({ kind: 'same', text: `auch ${state.favThing.trim()} mag` });
   for (const id of shuffle([...mine])) same.push({ id });
   let nSame = 0;
   for (const f of same) {
@@ -532,7 +505,30 @@ async function api(path, body, method = 'POST') {
 function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 
 function busy(on) {
-  for (const id of ['generate', 'newImage', 'print', 'shuffleBingo']) $('#' + id).disabled = on || (id !== 'generate' && !state.gen);
+  for (const id of ['generate', 'generate2', 'newImage', 'print', 'shuffleBingo']) $('#' + id).disabled = on || (!id.startsWith('generate') && !state.gen);
+}
+
+// Warte-Overlay: macht klar, dass gerade gezaubert wird (ca. 20 Sek.)
+let overlayTimer = 0;
+function overlay(on, step = '') {
+  const el = $('#overlay');
+  if (on) {
+    if (el.hidden) {
+      const t0 = Date.now(); el.hidden = false;
+      $('#overlayBar').style.width = '0%';
+      clearInterval(overlayTimer);
+      overlayTimer = setInterval(() => {
+        const sec = Math.round((Date.now() - t0) / 1000);
+        $('#overlayTime').textContent = `${sec} Sek.`;
+        $('#overlayBar').style.width = `${Math.min(95, (sec / 15) * 100)}%`; // ~15 Sek. erwartet
+      }, 500);
+    }
+    if (step) $('#overlayStep').textContent = step;
+  } else {
+    $('#overlayBar').style.width = '100%';
+    clearInterval(overlayTimer);
+    setTimeout(() => { el.hidden = true; $('#overlayTime').textContent = '0 Sek.'; }, 250);
+  }
 }
 function requireName() {
   if (state.name.trim()) return true;
@@ -542,21 +538,24 @@ function requireName() {
 }
 
 async function makeImage() {
-  setStatus('🎨 Avatar wird gezeichnet … (ca. 10–20 Sek.)', 'busy');
-  const { image } = await api('/api/image', { imagePrompt: state.gen.imagePrompt });
+  const { image } = await api('/api/image', { imagePrompt: localImagePrompt() });
   state.image = await loadImage(image);
   state.imageSrc = image; state.avatarDirty = true;
 }
 function localImagePrompt() {
   const c = state.creature && state.creature !== 'Überrasch mich!' ? state.creature : 'small cable monster';
   const tags = rankedSkills().flatMap((x) => [...x.tags]).slice(0, 3);
-  return `a ${c} with ${[...state.extras].join(', ') || 'a curious smile'}${tags.length ? ', themed around ' + tags.join(', ') : ''}. ${state.avatarText}`;
+  return `a ${c} with ${[...state.extras].join(', ') || 'a curious smile'}${tags.length ? ', themed around ' + tags.join(', ') : ''}${state.role === 'mentor' ? ', wise and experienced look' : ''}.`;
 }
 async function makeBingo() {
   let pool = { n: 0, fun: {}, cats: {}, teach: {}, learn: {} };
   try { pool = await api(`/api/pool${state.id ? `?exclude=${state.id}` : ''}`, null, 'GET'); } catch (e) { console.warn(e); }
   state.bingo = buildBingo(pool);
+  state.bingoKey = funKey();
 }
+// Bingo neu mischen, falls sich die Fun Facts seit dem letzten Mischen geändert haben
+const funKey = () => JSON.stringify([serialize().fun, state.favArtist.trim(), state.role, [...state.learn]]);
+async function ensureBingo() { if (!state.bingo || state.bingoKey !== funKey()) await makeBingo(); }
 
 // speichert Profil, Texte, Bingo, Avatar und die fertigen Druckbilder
 async function persist() {
@@ -573,31 +572,37 @@ async function persist() {
   state.avatarDirty = false;
 }
 
-$('#generate').onclick = async () => {
+async function generate() {
   if (!requireName()) return;
   busy(true);
+  overlay(true, '✍️ Texte werden ausgedacht, 🎨 Avatar wird gezeichnet …');
   const notes = [];
   try {
-    setStatus('✍️ Texte werden ausgedacht …', 'busy');
-    try { state.gen = await api('/api/text', profile()); }
-    catch (e) { console.warn(e); notes.push('Texte offline'); state.gen = { ...localText(), imagePrompt: localImagePrompt() }; }
-    renderNow();
-    try { await makeImage(); }
-    catch (e) { console.warn(e); notes.push('Bild offline'); if (!state.image) state.image = mascot; }
-    setStatus('🎲 Bingo wird gemischt …', 'busy');
+    // Text und Bild parallel – spart einige Sekunden
+    const [txt, img] = await Promise.allSettled([api('/api/text', profile()), makeImage()]);
+    if (txt.status === 'fulfilled') state.gen = txt.value;
+    else { console.warn(txt.reason); notes.push('Texte offline'); state.gen = { ...localText(), imagePrompt: localImagePrompt() }; }
+    if (img.status === 'rejected') { console.warn(img.reason); notes.push('Bild offline'); if (!state.image) state.image = mascot; }
+    overlay(true, '🎲 Bingo wird gemischt …');
     await makeBingo();
+    overlay(true, '💾 Karte wird gespeichert …');
     await persist();
-    setStatus(notes.length ? `Karte #${pad(state.no)} gespeichert (${notes.join(', ')} – KI gerade nicht erreichbar).` : `Karte #${pad(state.no)} gespeichert! Gefällt sie dir? Dann ab in den Drucker.`, notes.length ? 'err' : '');
+    showTab('card');
+    setStatus(notes.length ? `Karte #${pad(state.no)} gespeichert (${notes.join(', ')} – KI gerade nicht erreichbar).` : `Fertig! Gefällt dir Karte #${pad(state.no)}? Dann 🖨️ Drucken.`, notes.length ? 'err' : '');
+    $('.preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
     setStatus('Hoppla: ' + e.message, 'err');
-  } finally { busy(false); }
-};
+  } finally { overlay(false); busy(false); }
+}
+$('#generate').onclick = generate;
+$('#generate2').onclick = generate;
 
 $('#newImage').onclick = async () => {
   busy(true);
+  overlay(true, '🎨 Neuer Avatar wird gezeichnet …');
   try { await makeImage(); await persist(); setStatus('Neues Bild – besser?'); }
   catch (e) { setStatus('Hoppla: ' + e.message, 'err'); }
-  finally { busy(false); }
+  finally { overlay(false); busy(false); }
 };
 
 $('#shuffleBingo').onclick = async () => {
@@ -612,6 +617,7 @@ $('#print').onclick = async () => {
   busy(true);
   try {
     setStatus('🖨️ Wird gespeichert und gedruckt …', 'busy');
+    await ensureBingo();
     await persist();
     await api(`/api/cards/${state.id}/print`, { what: 'both' });
     setStatus('Gedruckt: Karte + Bingo. Viel Spaß beim Hackathon! 🎉');
@@ -648,13 +654,14 @@ function showTab(which) {
   $('.bingowrap').hidden = which !== 'bingo';
 }
 $('#tabCard').onclick = () => showTab('card');
-$('#tabBingo').onclick = () => showTab('bingo');
+$('#tabBingo').onclick = async () => { showTab('bingo'); if (state.gen) { await ensureBingo(); renderNow(); } };
 
 // ---------------- Start ----------------
 async function loadCard(id) {
   const c = await api(`/api/cards/${id}`, null, 'GET');
   state = deserialize(c.state);
   Object.assign(state, { id: c.id, no: c.no, gen: c.gen || null, bingo: c.bingo || null });
+  state.bingoKey = c.bingo ? funKey() : null; // gespeichertes Bingo beim Nachdruck nicht neu mischen
   if (c.avatarExt) { state.image = await loadImage(`/api/cards/${c.id}/avatar?t=${Date.now()}`); state.imageSrc = 'stored'; }
   else if (c.gen) state.image = mascot;
   buildAll();

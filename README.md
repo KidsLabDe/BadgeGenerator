@@ -60,6 +60,18 @@ auf der Karte, sie fließen nur in die Bingozettel der anderen ein. Die Felder k
 bisherigen Karten (nur Chip-Auswahlen, nie Namen oder Freitext). Am Anfang füllen häufige Antworten auf.
 Eigener Freitext (Lieblingskünstler*in usw.) erscheint nur als „Wie du“-Feld auf dem eigenen Zettel.
 
+## Welche Daten wohin gehen
+
+| Eingabe | Karte | Bingo | an Gemini |
+|---|---|---|---|
+| Name, Rolle | ✅ | ✅ | ✅ |
+| Skill-Regler und Tags | ✅ Typen, Energie, Attacken | ✅ Typ- und „zeigen kann“-Felder | ✅ |
+| Avatar-Wesen und Extras | ✅ Bild | – | ✅ |
+| Lern-Chips | indirekt (Flavor) | ✅ „zeigen kann“ / „lernen will“ | ✅ |
+| Fun Facts, Lieblingskünstler*in | – | ✅ | ❌ nie |
+
+Alles wird lokal in `data/cards/` gespeichert, denn der Bingo-Vorrat braucht die Fun Facts der anderen.
+
 ## Datenschutz
 
 Alles bleibt lokal auf dem Laptop. An Gemini gehen nur Skills, Avatar-Wünsche und Persönlichkeitsregler, keine Fun Facts.
