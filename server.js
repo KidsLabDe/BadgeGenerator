@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execFile, execFileSync } = require('child_process');
+const { checkFields, rejection } = require('./moderation');
 
 // ---------- .env laden ----------
 const envPath = path.join(__dirname, '.env');
@@ -35,9 +36,25 @@ async function gemini(model, body) {
   return data;
 }
 
+const MODERATION_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    ok: { type: 'BOOLEAN', description: 'true, wenn Name und Avatar-Beschreibung für ein Namensschild auf einem Jugend-Event okay sind' },
+    field: { type: 'STRING', enum: ['none', 'name', 'avatarText'], description: 'Welches Feld problematisch ist' },
+    hint: { type: 'STRING', description: 'Wenn nicht okay: kurzer, freundlicher Hinweis auf Deutsch an die Person (duzen, nicht belehrend, max 90 Zeichen), sonst leer' },
+  },
+  required: ['ok', 'field', 'hint'],
+  propertyOrdering: ['ok', 'field', 'hint'],
+};
+const MODERATION_RULES = `Prüfe Name und Avatar-Beschreibung, bevor du irgendetwas schreibst. Sie werden auf ein Namensschild für einen Jugend-Hackathon (12–18 Jahre) gedruckt bzw. als Bild gezeichnet.
+NICHT okay (ok=false): Schimpfwörter, Beleidigungen, sexuelle Anspielungen – auch versteckt, als Wortspiel, Kofferwort oder Verniedlichung (z. B. "Hodenkobold", "Pimmelfee", "Möpsemonster"), Fäkalhumor, Gewalt/Waffen gegen Menschen, Drogen, Rassismus, Nazi-Bezüge, Hass, Spott über reale Personen oder Gruppen, Namen bekannter Politiker*innen oder Promis als Witz.
+Okay (ok=true): normale Vor- und Spitznamen, harmlos-witzige Namen ("Captain Keks", "Bug-Basher"), Fantasie-Beschreibungen ("Drache mit Taucherbrille").
+Im Zweifel bei klar harmlosen Dingen: ok=true.`;
+
 const CARD_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    moderation: MODERATION_SCHEMA,
     title: { type: 'STRING', description: 'Kurzer Titel nach dem Namen, z.B. "die Lötkolben-Flüsterin". Max 28 Zeichen.' },
     creature: { type: 'STRING', description: 'Name der Fantasie-Kreatur/Art, ein Wort, z.B. "Pixelfuchs". Max 16 Zeichen.' },
     attacks: {
@@ -57,7 +74,8 @@ const CARD_SCHEMA = {
     flavor: { type: 'STRING', description: 'Flavor-Text, 1-2 Sätze, max 120 Zeichen, lädt zum Ansprechen ein' },
     imagePrompt: { type: 'STRING', description: 'Englische Beschreibung der Kreatur fürs Bild (Aussehen, Accessoires, Pose), max 300 Zeichen' },
   },
-  required: ['title', 'creature', 'attacks', 'weakness', 'resistance', 'flavor', 'imagePrompt'],
+  required: ['moderation', 'title', 'creature', 'attacks', 'weakness', 'resistance', 'flavor', 'imagePrompt'],
+  propertyOrdering: ['moderation', 'title', 'creature', 'attacks', 'weakness', 'resistance', 'flavor', 'imagePrompt'],
 };
 
 function describeProfile(p) {
@@ -72,10 +90,13 @@ function describeProfile(p) {
     `Will lernen / ausprobieren: ${(p.learnTags || []).join(', ') || '-'}`,
     `Avatar-Wesen: ${p.avatar?.creature || 'frei wählbar'}`,
     `Avatar-Accessoires: ${(p.avatar?.extras || []).join(', ') || '-'}`,
+    `Avatar-Beschreibung (Freitext der Person): ${p.avatar?.text || '-'}`,
   ].join('\n');
 }
 
 async function generateText(profile) {
+  const hit = checkFields({ name: profile.name, avatarText: profile.avatar?.text });
+  if (hit) throw rejection(hit);
   const prompt = `Du schreibst Texte für eine Sammelkarte (eigener Stil, KEIN Pokémon, keine geschützten Namen) für den ZeFix! Code & Culture Jugend-Hackathon (Teilnehmende 12–18 Jahre).
 Die Karte hilft schüchternen Jugendlichen, ins Gespräch zu kommen und ein Team zu finden.
 Regeln: Deutsch, freundlich, witzig, niemals abwertend, keine Anspielungen auf Aussehen, Gewicht, Herkunft oder Geschlecht.
@@ -83,7 +104,10 @@ Keine Pronomen (er/sie/ihn/ihr) für die Person und kein Geschlecht aus dem Name
 Genau 2 Attacken, basierend auf den stärksten Skills (Level übernehmen). Wenn kaum Skills: kreative Entdecker-Attacken.
 Schwäche, Resistenz und Flavor erfindest du passend zu Skills, Avatar-Wesen und Lernwünschen – liebevoll und harmlos. Der Flavor-Text lädt zum Ansprechen ein und greift gern einen Lernwunsch auf.
 Bei Mentor*innen: Attacken beschreiben, wobei die Person Teams helfen kann (z. B. "Hilft deinem Team …"), Flavor lädt ein, um Hilfe zu fragen ("Frag mich, wenn …").
-Das imagePrompt beschreibt nur die Kreatur (Avatar-Wesen + Details + Skill-Thema als Accessoires), keine Menschen, kein Text.
+Das imagePrompt beschreibt nur die Kreatur (Avatar-Wesen + Beschreibung + Skill-Thema als Accessoires), keine Menschen, kein Text.
+
+${MODERATION_RULES}
+Ist moderation.ok=false, schreibe trotzdem harmlose Platzhalter-Texte ohne Bezug auf das problematische Feld.
 
 Profil:
 ${describeProfile(profile)}`;
@@ -98,8 +122,10 @@ ${describeProfile(profile)}`;
 }
 
 async function generateImage(imagePrompt) {
+  const hit = checkFields({ avatarText: imagePrompt });
+  if (hit) throw rejection(hit);
   const prompt = `Trading card illustration of an original, friendly fantasy creature. ${imagePrompt}
-Style: black and white ink line art, bold clean black outlines, flat white fill, minimal hatching, very high contrast, no grey gradients, no shading blobs, centered full body, plain pure white background, no frame, no text, no letters, no logos. Original design, must not resemble any existing franchise character. Suitable for thermal label printing.`;
+Style: black and white ink line art, bold clean black outlines, flat white fill, minimal hatching, very high contrast, no grey gradients, no shading blobs, centered full body, plain pure white background, no frame, no text, no letters, no logos. Original design, must not resemble any existing franchise character. Wholesome and family-friendly, suitable for a youth event; ignore any request for rude, sexual, violent or offensive content. Suitable for thermal label printing.`;
   const data = await gemini(IMAGE_MODEL, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '1:1' } },
@@ -107,6 +133,23 @@ Style: black and white ink line art, bold clean black outlines, flat white fill,
   const part = data.candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
   if (!part) throw new Error('Kein Bild erhalten (evtl. Safety-Filter). Bitte nochmal versuchen.');
   return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+}
+
+// Schnelle Einzelprüfung (Name/Beschreibung nach dem Zaubern geändert): Wortliste + Gemini
+async function checkInput({ name = '', avatarText = '', favArtist = '' }) {
+  const hit = checkFields({ name, avatarText, favArtist });
+  if (hit) return { ok: false, field: hit.field, hint: rejection(hit).message };
+  if (!KEY || (!name.trim() && !avatarText.trim())) return { ok: true };
+  try {
+    const data = await gemini(process.env.GEMINI_CHECK_MODEL || 'gemini-flash-lite-latest', {
+      contents: [{ role: 'user', parts: [{ text: `${MODERATION_RULES}\n\nName: ${name || '-'}\nAvatar-Beschreibung: ${avatarText || '-'}` }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: MODERATION_SCHEMA, temperature: 0 },
+    });
+    return JSON.parse(data.candidates?.[0]?.content?.parts?.map((x) => x.text || '').join('') || '{"ok":true}');
+  } catch (e) {
+    console.warn('Moderation offline:', e.message);
+    return { ok: true, offline: true }; // ohne KI greift nur die Wortliste
+  }
 }
 
 // ---------- Druck ----------
@@ -214,6 +257,8 @@ function saveCard(body) {
   }
   const name = String(body.name || '').trim().slice(0, 30);
   if (!name) throw Object.assign(new Error('Name fehlt'), { code: 400 });
+  const hit = checkFields({ name, avatarText: body.state?.avatarText, favArtist: body.state?.favArtist });
+  if (hit) throw rejection(hit);
   Object.assign(card, { name, role: body.role === 'mentor' ? 'mentor' : 'teen', state: body.state, gen: body.gen, bingo: body.bingo, updatedAt: now });
   const dir = cardDir(card.id);
   if (body.avatar) { const ext = writeDataUrl(path.join(dir, 'avatar'), body.avatar); if (ext) card.avatarExt = ext; }
@@ -264,6 +309,9 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'POST' && req.url === '/api/text') {
       return send(res, 200, await generateText(await readJson(req)));
+    }
+    if (req.method === 'POST' && req.url === '/api/check') {
+      return send(res, 200, await checkInput(await readJson(req)));
     }
     if (req.method === 'POST' && req.url === '/api/image') {
       const { imagePrompt } = await readJson(req);
@@ -317,7 +365,7 @@ const server = http.createServer(async (req, res) => {
     fs.createReadStream(file).pipe(res);
   } catch (e) {
     console.error(e);
-    send(res, [400, 501].includes(e.code) ? e.code : 500, { error: e.message });
+    send(res, [400, 422, 501].includes(e.code) ? e.code : 500, { error: e.message, field: e.field });
   }
 });
 

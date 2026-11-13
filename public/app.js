@@ -12,7 +12,7 @@ function freshState() {
     id: null, no: null,
     role: 'teen', name: '',
     skills: Object.fromEntries(CATEGORIES.map((c) => [c.id, { level: 0, tags: new Set(), custom: [] }])),
-    creature: '', extras: new Set(),
+    creature: '', extras: new Set(), avatarText: '',
     learn: new Set(),
     fun: Object.fromEntries(FUN_GROUPS.map((g) => [g.id, new Set()])), favArtist: '',
     gen: null,          // Texte von Gemini
@@ -29,7 +29,7 @@ function serialize() {
   return {
     role: state.role, name: state.name,
     skills: Object.fromEntries(Object.entries(state.skills).map(([k, v]) => [k, { level: v.level, tags: [...v.tags], custom: v.custom }])),
-    creature: state.creature, extras: [...state.extras],
+    creature: state.creature, extras: [...state.extras], avatarText: state.avatarText,
     learn: [...state.learn],
     fun: Object.fromEntries(Object.entries(state.fun).map(([k, v]) => [k, [...v]])), favArtist: state.favArtist,
     seed: state.seed,
@@ -38,7 +38,7 @@ function serialize() {
 function deserialize(s = {}) {
   const st = freshState();
   Object.assign(st, {
-    role: s.role || 'teen', name: s.name || '', creature: s.creature || '',
+    role: s.role || 'teen', name: s.name || '', creature: s.creature || '', avatarText: s.avatarText || '',
     favArtist: s.favArtist || '', seed: s.seed ?? st.seed,
     extras: new Set(s.extras || []), learn: new Set(s.learn || []),
   });
@@ -107,9 +107,9 @@ function buildFun() {
 }
 
 function bindInputs() {
-  for (const id of ['name', 'favArtist']) {
+  for (const id of ['name', 'avatarText', 'favArtist']) {
     const el = $('#' + id); el.value = state[id];
-    el.oninput = () => { state[id] = el.value; if (id === 'name') el.classList.remove('missing'); changed(); };
+    el.oninput = () => { state[id] = el.value; el.classList.remove('missing'); changed(); };
   }
 }
 
@@ -137,7 +137,7 @@ function profile() {
     role: state.role,
     name: state.name.trim(),
     skills: CATEGORIES.map((c) => ({ label: c.label, level: state.skills[c.id].level, tags: [...state.skills[c.id].tags] })),
-    avatar: { creature: state.creature, extras: [...state.extras] },
+    avatar: { creature: state.creature, extras: [...state.extras], text: state.avatarText.trim() },
     learnTags: [...state.learn],
     // Fun Facts gehen bewusst NICHT an Gemini – sie sind geheim fürs Bingo
   };
@@ -499,7 +499,7 @@ function setStatus(msg, cls = '') { const s = $('#status'); s.textContent = msg;
 async function api(path, body, method = 'POST') {
   const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j.error || `Fehler ${r.status}`), { status: r.status });
+  if (!r.ok) throw Object.assign(new Error(j.error || `Fehler ${r.status}`), { status: r.status, field: j.field });
   return j;
 }
 function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
@@ -537,15 +537,34 @@ function requireName() {
   return false;
 }
 
+// Filter: Feld markieren und freundlichen Hinweis zeigen
+const FIELD_INPUT = { name: '#name', avatarText: '#avatarText', favArtist: '#favArtist' };
+function flag(field, hint) {
+  const el = $(FIELD_INPUT[field] || '#name');
+  el.classList.add('missing'); el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setStatus('🙈 ' + (hint || 'Das geht so nicht aufs Namensschild – bitte etwas anderes wählen.'), 'err');
+}
+const modKey = () => JSON.stringify([state.name.trim(), state.avatarText.trim(), state.favArtist.trim()]);
+async function checkChanged() {
+  if (state.modKey === modKey()) return true;
+  const res = await api('/api/check', { name: state.name.trim(), avatarText: state.avatarText.trim(), favArtist: state.favArtist.trim() });
+  if (!res.ok) { flag(res.field, res.hint); return false; }
+  state.modKey = modKey(); return true;
+}
+
 async function makeImage() {
   const { image } = await api('/api/image', { imagePrompt: localImagePrompt() });
   state.image = await loadImage(image);
   state.imageSrc = image; state.avatarDirty = true;
 }
 function localImagePrompt() {
-  const c = state.creature && state.creature !== 'Überrasch mich!' ? state.creature : 'small cable monster';
+  const desc = state.avatarText.trim();
+  const c = state.creature && state.creature !== 'Überrasch mich!' ? state.creature : desc ? 'original creature' : 'small cable monster';
   const tags = rankedSkills().flatMap((x) => [...x.tags]).slice(0, 3);
-  return `a ${c} with ${[...state.extras].join(', ') || 'a curious smile'}${tags.length ? ', themed around ' + tags.join(', ') : ''}${state.role === 'mentor' ? ', wise and experienced look' : ''}.`;
+  return [
+    desc && `Character description by the participant (German, follow it closely): "${desc}".`,
+    `A ${c} with ${[...state.extras].join(', ') || 'a curious smile'}${tags.length ? ', themed around ' + tags.join(', ') : ''}${state.role === 'mentor' ? ', wise and experienced look' : ''}.`,
+  ].filter(Boolean).join(' ');
 }
 async function makeBingo() {
   let pool = { n: 0, fun: {}, cats: {}, teach: {}, learn: {} };
@@ -577,12 +596,21 @@ async function generate() {
   busy(true);
   overlay(true, '✍️ Texte werden ausgedacht, 🎨 Avatar wird gezeichnet …');
   const notes = [];
+  const before = { gen: state.gen, image: state.image, imageSrc: state.imageSrc, avatarDirty: state.avatarDirty };
+  const undo = () => Object.assign(state, before);
   try {
     // Text und Bild parallel – spart einige Sekunden
     const [txt, img] = await Promise.allSettled([api('/api/text', profile()), makeImage()]);
+    // Filter: Wortliste (422) oder Gemini-Prüfung im Text-Aufruf
+    const blocked = [txt, img].find((x) => x.status === 'rejected' && x.reason?.status === 422);
+    if (blocked) { undo(); renderNow(); return flag(blocked.reason.field, blocked.reason.message); }
+    if (txt.status === 'fulfilled' && txt.value.moderation && txt.value.moderation.ok === false) {
+      undo(); renderNow(); return flag(txt.value.moderation.field, txt.value.moderation.hint);
+    }
     if (txt.status === 'fulfilled') state.gen = txt.value;
     else { console.warn(txt.reason); notes.push('Texte offline'); state.gen = { ...localText(), imagePrompt: localImagePrompt() }; }
     if (img.status === 'rejected') { console.warn(img.reason); notes.push('Bild offline'); if (!state.image) state.image = mascot; }
+    state.modKey = modKey();
     overlay(true, '🎲 Bingo wird gemischt …');
     await makeBingo();
     overlay(true, '💾 Karte wird gespeichert …');
@@ -591,7 +619,8 @@ async function generate() {
     setStatus(notes.length ? `Karte #${pad(state.no)} gespeichert (${notes.join(', ')} – KI gerade nicht erreichbar).` : `Fertig! Gefällt dir Karte #${pad(state.no)}? Dann 🖨️ Drucken.`, notes.length ? 'err' : '');
     $('.preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
-    setStatus('Hoppla: ' + e.message, 'err');
+    if (e.status === 422) flag(e.field, e.message);
+    else setStatus('Hoppla: ' + e.message, 'err');
   } finally { overlay(false); busy(false); }
 }
 $('#generate').onclick = generate;
@@ -600,8 +629,8 @@ $('#generate2').onclick = generate;
 $('#newImage').onclick = async () => {
   busy(true);
   overlay(true, '🎨 Neuer Avatar wird gezeichnet …');
-  try { await makeImage(); await persist(); setStatus('Neues Bild – besser?'); }
-  catch (e) { setStatus('Hoppla: ' + e.message, 'err'); }
+  try { if (!(await checkChanged())) return; await makeImage(); await persist(); setStatus('Neues Bild – besser?'); }
+  catch (e) { if (e.status === 422) flag(e.field, e.message); else setStatus('Hoppla: ' + e.message, 'err'); }
   finally { overlay(false); busy(false); }
 };
 
@@ -617,12 +646,14 @@ $('#print').onclick = async () => {
   busy(true);
   try {
     setStatus('🖨️ Wird gespeichert und gedruckt …', 'busy');
+    if (!(await checkChanged())) return;
     await ensureBingo();
     await persist();
     await api(`/api/cards/${state.id}/print`, { what: 'both' });
     setStatus('Gedruckt: Karte + Bingo. Viel Spaß beim Hackathon! 🎉');
   } catch (e) {
     if (e.status === 501) { browserPrint([canvas.toDataURL(), bcanvas.toDataURL()]); setStatus('Über den Druckdialog drucken (Papier: 62 mm).'); }
+    else if (e.status === 422) flag(e.field, e.message);
     else setStatus('Druckfehler: ' + e.message, 'err');
   } finally { busy(false); }
 };
@@ -661,7 +692,8 @@ async function loadCard(id) {
   const c = await api(`/api/cards/${id}`, null, 'GET');
   state = deserialize(c.state);
   Object.assign(state, { id: c.id, no: c.no, gen: c.gen || null, bingo: c.bingo || null });
-  state.bingoKey = c.bingo ? funKey() : null; // gespeichertes Bingo beim Nachdruck nicht neu mischen
+  state.bingoKey = c.bingo ? funKey() : null;
+  state.modKey = modKey(); // gespeicherte Karte wurde schon geprüft // gespeichertes Bingo beim Nachdruck nicht neu mischen
   if (c.avatarExt) { state.image = await loadImage(`/api/cards/${c.id}/avatar?t=${Date.now()}`); state.imageSrc = 'stored'; }
   else if (c.gen) state.image = mascot;
   buildAll();

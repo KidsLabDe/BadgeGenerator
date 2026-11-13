@@ -34,6 +34,24 @@ Probleme mit dem Drucker? Dann `./scripts/printer-check.sh` ausführen und die A
 Gibt es kein `/dev/usb/lp0` (auf Manjaro/Arch ist `usblp` oft gesperrt), druckt der Server automatisch direkt
 per USB über libusb. Die nötige udev-Regel legt `setup-linux.sh` an.
 
+### Update auf dem Laptop
+
+```bash
+./update.sh
+```
+Holt die neueste Version, zeigt die Neuerungen und startet den Server neu. Danach im Browser einmal
+Strg + Umschalt + R drücken. Mit `./update.sh --karten-loeschen` werden zusätzlich alle gespeicherten
+Karten gelöscht, mit Nachfrage.
+
+## Filter gegen Schimpfwörter
+
+Name, Avatar-Beschreibung und Lieblingskünstler*in werden in zwei Stufen geprüft:
+1. **Wortliste** (`moderation.js`): Sie läuft sofort und auch offline und erkennt Tricks wie `H0d3n`, `Hooodeeen` oder `H-o-d-e-n`.
+2. **Gemini**: Diese Prüfung läuft im selben Aufruf wie die Kartentexte, also ohne Extra-Wartezeit. Sie erkennt Wortspiele
+   und versteckte Anspielungen wie „Eierkrauler“ und gibt einen freundlichen Hinweis.
+
+Wird der Name nach dem Zaubern noch geändert, prüft die App ihn vor dem Druck erneut. Ohne Internet greift nur die Wortliste.
+
 ## Entwicklung (macOS)
 
 ```bash
@@ -66,7 +84,7 @@ Eigener Freitext (Lieblingskünstler*in usw.) erscheint nur als „Wie du“-Fel
 |---|---|---|---|
 | Name, Rolle | ✅ | ✅ | ✅ |
 | Skill-Regler und Tags | ✅ Typen, Energie, Attacken | ✅ Typ- und „zeigen kann“-Felder | ✅ |
-| Avatar-Wesen und Extras | ✅ Bild | – | ✅ |
+| Avatar-Wesen, Extras, Beschreibung | ✅ Bild | – | ✅ |
 | Lern-Chips | indirekt (Flavor) | ✅ „zeigen kann“ / „lernen will“ | ✅ |
 | Fun Facts, Lieblingskünstler*in | – | ✅ | ❌ nie |
 

@@ -141,7 +141,7 @@ button.ghost { box-shadow: none; }
 
 /* ---------- Ergänzungen: Rolle, Fun Facts, Tabs, Übersicht ---------- */
 #role { margin-bottom: 4px; }
-#name.missing { border-color: var(--pink); background: #ffe3ee; animation: wobble .4s; }
+input.missing { border-color: var(--pink); background: #ffe3ee; animation: wobble .4s; }
 @keyframes wobble { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .toplink { color: #fff; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; border-bottom: 2px solid var(--pink); padding-bottom: 2px; }
 .step.secret { background: var(--ink); color: #fff; }
@@ -185,3 +185,4 @@ button.ghost { box-shadow: none; }
   background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.35) 0 8px, transparent 8px 16px); }
 .overlay-time { font-family: var(--mono); font-size: 13px; letter-spacing: 1px; margin-top: 8px; color: #6d6875; }
 .overlay-note { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top: 10px; color: var(--pink); font-weight: 700; }
+.step.secret input.missing { color: var(--ink); }
